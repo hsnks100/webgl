@@ -1,0 +1,180 @@
+<html>
+  <head>
+<meta charset="utf-8">
+<title>Learning WebGL &mdash; lesson 7</title>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+<script type="text/javascript" src="gl-matrix.js"></script>
+<script type="text/javascript" src="webgl-utils.js"></script>
+<script type="text/javascript" src="three.js"></script>
+<script type="text/javascript" src="inits.js"></script>
+<script type="text/javascript" src="cube.js"></script>
+<script type="text/javascript" src="tree.js"></script>
+<script type="text/javascript" src="floor.js"></script>
+<script type="text/javascript" src="snow.js"></script>
+<script type="text/javascript" src="tetra.js"></script>
+<script type="text/javascript" src="star.js"></script>
+<script type="text/javascript" src="main.js"></script>
+
+
+<script id="shader-fs" type="x-shader/x-fragment">
+precision mediump float;
+
+    varying vec2 vTextureCoord;
+    varying vec3 vTransformedNormal;
+    varying vec4 vPosition;
+
+    uniform bool uUseTexture;
+    uniform bool uUseSpecularMap;
+    uniform bool uUseLighting;
+
+    uniform vec3 uAmbientColor;
+
+    uniform vec3 uPointLightingLocation;
+    uniform vec3 uPointLightingSpecularColor;
+    uniform vec3 uPointLightingDiffuseColor;
+    uniform bool uTransparency;
+    uniform float uAlpha;
+
+    uniform sampler2D uColorMapSampler;
+    uniform sampler2D uSpecularMapSampler;
+
+
+    void main(void) {
+        vec3 lightWeighting;
+        vec3 lightDirection = normalize(uPointLightingLocation - vPosition.xyz);
+        vec3 normal = normalize(vTransformedNormal);
+        if (!uUseLighting) {
+            lightWeighting = vec3(1.0, 1.0, 1.0);
+        } else {
+
+            float specularLightWeighting = 0.0;
+            float shininess = 200.0;
+            if (shininess < 255.0) {
+                vec3 eyeDirection = normalize(-vPosition.xyz);
+                vec3 reflectionDirection = reflect(-lightDirection, normal);
+
+                specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), shininess);
+            }
+
+            float diffuseLightWeighting = max(dot(normal, lightDirection), 0.0);
+            lightWeighting = uAmbientColor
+                //+ uPointLightingSpecularColor * specularLightWeighting
+                + uPointLightingDiffuseColor * diffuseLightWeighting;
+        }
+
+        if(!uUseTexture){
+          gl_FragColor = vec4(vec3(1, 0, 0) * lightWeighting, uAlpha);
+        }
+        else{
+          vec4 textureColor = texture2D(uColorMapSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+          if(uTransparency){
+            if(textureColor.x <=  0.01 && textureColor.y <= 0.01 && textureColor.z <= 0.01){
+              textureColor.a = 0.0;
+            }
+          }
+          textureColor.a *= uAlpha;
+          gl_FragColor = vec4(textureColor.rgb * lightWeighting, textureColor.a); 
+        } 
+    }
+</script>
+
+<script id="shader-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+    attribute vec2 aTextureCoord;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+
+    varying vec2 vTextureCoord;
+    varying vec3 vTransformedNormal;
+    varying vec4 vPosition;
+
+
+    void main(void) {
+        vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = uPMatrix * vPosition;
+        vTextureCoord = aTextureCoord;
+        vTransformedNormal = uNMatrix * aVertexNormal;
+    }
+</script>
+
+<script type="text/javascript">
+
+
+</script>
+
+
+</head>
+
+
+<body onload="webGLStart();">
+    <a href="http://learningwebgl.com/blog/?p=684">&lt;&lt; Back to Lesson 7</a><br />
+
+    <div style="float:left;">
+      <canvas id="lesson07-canvas" style="border: none;" width="800" height="800"></canvas>
+    </div>
+    <div>
+      <br />
+      <br/>
+      <h2>INTERFACE</h2>
+      <table style="border: 0; padding: 10px;">
+        <tr>
+          <td>파티클 개수 시작/끝: <input type="text" id="particles_begin" value="200" /><input type="text" id="particles_end" value="200" /></td>
+        </tr>
+        <tr>
+          <td>바람의 크기(양수면 오른쪽): <input type="text" id="wind" value="0" readonly/>
+            <input type="button" id="leftWind" value="-" onclick="(function(){
+                                                         var value = document.getElementById('wind').value;
+                                                         document.getElementById('wind').value = Number(value) - 1;
+                                                         })();" />
+            <input type="button" id="rightWind" value="+" onclick="(function(){
+                                                         var value = document.getElementById('wind').value;
+                                                         document.getElementById('wind').value = Number(value) + 1;
+                                                          })();" />
+        </tr>
+      </table>
+      <input type="checkbox" id="texture" checked /> Use texture<br/>
+      <input type="checkbox" id="specular-map" checked /> Use specular map<br/>
+      <input type="checkbox" id="lighting" checked /> Use lighting<br/>
+      <input type="text" id="scale" value="2" hidden/>
+
+      <h2>Directional light:</h2> 
+      <table style="border: 0; padding: 10px; display:none">
+        <tr>
+          <td><b>Location:</b></td>
+          <td>X: <input type="text" id="lightPositionX" value="100.0" /></td>
+          <td>Y: <input type="text" id="lightPositionY" value="50.0" /></td>
+          <td>Z: <input type="text" id="lightPositionZ" value="3.0" /></td>
+        </tr>
+        <tr>
+          <td><b>Specular colour:</b></td>
+          <td>R: <input type="text" id="specularR" value="5.0" /></td>
+          <td>G: <input type="text" id="specularG" value="5.0" /></td>
+          <td>B: <input type="text" id="specularB" value="5.0" /></td>
+        </tr>
+        <tr>
+          <td><b>Diffuse colour:</b></td>
+          <td>R: <input type="text" id="diffuseR" value="0.8" /></td>
+          <td>G: <input type="text" id="diffuseG" value="0.8" /></td>
+          <td>B: <input type="text" id="diffuseB" value="0.8" /></td>
+        </tr>
+      </table>
+
+      <h2>Ambient light:</h2>
+      <table style="border: 0; padding: 10px; display:none">
+        <tr>
+          <td><b>Colour:</b></td>
+          <td>R: <input type="text" id="ambientR" value="0.3" /></td>
+          <td>G: <input type="text" id="ambientG" value="0.6" /></td>
+          <td>B: <input type="text" id="ambientB" value="0.7" /></td>
+        </tr>
+      </table>
+    </div>
+
+
+</body>
+
+</html>
