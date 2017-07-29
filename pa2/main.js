@@ -2,7 +2,7 @@
 var program;
 var canvas;
 var gl;
-var isRun = false;
+var isRun = true;
 var viewToggle = false;
 
 var numTimesToSubdivide = 3;
