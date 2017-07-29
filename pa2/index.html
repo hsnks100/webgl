@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec4 vPosition;
+attribute vec4 vNormal;
+uniform mat4 uMVMatrix;
+uniform mat4 uPMatrix;
+uniform mat4 uLookAtMatrix;
+uniform mat4 normalMatrix;
+
+uniform vec4 lightPosition;
+
+varying vec3 N, L, E;
+void main()
+{
+  vec3 pos = (uMVMatrix *  vPosition).xyz;
+  //fixed light postion
+  vec3 light = (lightPosition).xyz;
+  L = normalize( light - pos );
+
+
+  E = normalize( -pos );
+
+  vec4 NN = vNormal; // vec4(vNormal,0);
+
+  // Transform vertex normal into eye coordinates
+  N = normalize( (uMVMatrix*NN).xyz);
+  gl_Position = uPMatrix *uLookAtMatrix * uMVMatrix * vPosition;
+
+}
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+
+precision mediump float;
+
+uniform vec4 ambientProduct, diffuseProduct, specularProduct;
+uniform float shininess;
+varying vec3 N, L, E;
+void
+main()
+{
+  vec4 fColor;
+  vec3 H = normalize( L + E );
+  // Compute terms in the illumination equation
+  vec4 ambient = ambientProduct;
+
+  float Kd = max( dot(L, N), 0.0 );
+  vec4  diffuse = Kd*diffuseProduct;
+
+  float Ks = pow( max(dot(N, H), 0.0), shininess );
+  vec4  specular = Ks * specularProduct;
+
+  if( dot(L, N) < 0.0 ) {
+    specular = vec4(0.0, 0.0, 0.0, 1.0);
+  } 
+
+  fColor = ambient + diffuse + specular;
+  fColor.a = 1.0;
+  gl_FragColor = fColor;
+}
+</script>
+<p> </p>
+<button id = "Button0" hidden>Increase R</button>
+<button id = "Button1" hidden>Decrease R</button>
+
+<p> </p>
+<button id = "Button2" hidden>Increase theta</button>
+<button id = "Button3" hidden>Decrease theta</button>
+<button id = "Button4" hidden>Increase phi</button>
+<button id = "Button5" hidden>Decrease phi</button>
+<p> </p>
+<button id = "Button6" hidden>Increase Subdivisions</button>
+<button id = "Button7" hidden>Decrease Subdivisions</button>
+
+<p></p>
+
+<script type="text/javascript" src="webgl-utils.js"></script>
+<script type="text/javascript" src="initShaders.js"></script>
+<script type="text/javascript" src="cube.js"></script>
+<script type="text/javascript" src="pyramid.js"></script>
+<script type="text/javascript" src="tetra.js"></script>
+<script type="text/javascript" src="sun.js"></script>
+<script type="text/javascript" src="myung.js"></script>
+<script type="text/javascript" src="earth.js"></script>
+<script type="text/javascript" src="satel.js"></script>
+<script type="text/javascript" src="MV.js"></script>
+<script type="text/javascript" src="main.js"></script>
+
+<script>
+function on_key_down(){
+  console.log(event.keyCode);
+  if(event.keyCode == 189) {
+    eyeDistance = Math.min(eyeDistance + 1, 30); 
+  }
+  if(event.keyCode == 187){
+    eyeDistance = Math.max(eyeDistance - 1, 3);
+  }
+  if(event.keyCode == 72){
+    isRun = !isRun;
+  }
+  if(event.keyCode == 81){
+    window.close();
+  }
+  if(event.keyCode == 84){
+    viewToggle = !viewToggle; 
+  }
+}
+</script>
+<body onkeydown='on_key_down()'>
+<h1>
+<div style="text-align:center;">zoom in = '-' key, zoom out = '=' key, resume = 'h' key, 4 section toggle = 't' key</div>
+<div id="display"></div>
+<div id="display2"></div>
+</h1>
+<canvas id="gl-canvas" width="1024" height="1024">
+Oops ... your browser doesn't support the HTML5 canvas element
+</canvas>
+</body>
+</html>
